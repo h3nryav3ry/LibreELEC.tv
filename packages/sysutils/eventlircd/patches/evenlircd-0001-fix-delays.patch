@@ -1,0 +1,19 @@
+diff -Naur eventlircd-7faaf9d/src/input.c patch.eventlircd-7faaf9d/src/input.c
+--- eventlircd-7faaf9d/src/input.c      2016-03-15 20:27:42.000000000 +0100
++++ patch.eventlircd-7faaf9d/src/input.c        2017-02-11 10:43:28.976980110 +0100
+@@ -1337,6 +1337,7 @@
+        __u16 code;
+        uint32_t code_in;
+        __u16 code_out;
++       int kbdrep[2] = { 400, 80 };
+
+        if (udev_device == NULL) {
+                errno = EINVAL;
+@@ -1471,6 +1472,7 @@
+                                ioctl(device->fd, EVIOCGBIT(EV_SND, SND_MAX), bit_snd);
+                                break;
+                        case EV_REP:
++                               ioctl(device->fd, EVIOCSREP, kbdrep);
+                                break;
+                        case EV_FF:
+                                memset(bit_ff, 0, sizeof(bit_ff));
