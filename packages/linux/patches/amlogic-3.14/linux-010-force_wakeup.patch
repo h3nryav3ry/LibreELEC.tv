@@ -1,0 +1,94 @@
+From dcdb2b80580d2c28239cce66e7fc506ef7f2fdb6 Mon Sep 17 00:00:00 2001
+From: Stanislav Vlasic <svlasic@gmail.com>
+Date: Wed, 11 May 2016 16:40:59 +0200
+Subject: [PATCH] Force wakeup from suspend patch for 3.14 kernel
+
+---
+ drivers/amlogic/cec/hdmi_ao_cec.c          | 2 ++
+ drivers/amlogic/input/remote/remote_main.c | 3 ++-
+ drivers/amlogic/pm/Kconfig                 | 7 +++++++
+ drivers/amlogic/pm/gxbb_pm.c               | 7 +++++++
+ 4 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/amlogic/cec/hdmi_ao_cec.c b/drivers/amlogic/cec/hdmi_ao_cec.c
+index f250ae6..2b3ecb4 100644
+--- a/drivers/amlogic/cec/hdmi_ao_cec.c
++++ b/drivers/amlogic/cec/hdmi_ao_cec.c
+@@ -1005,10 +1005,12 @@ static int cec_late_check_rx_buffer(void)
+ 
+ void cec_key_report(int suspend)
+ {
++#ifndef CONFIG_GXBB_FORCE_POWER_ON_STATE_AFTER_RESUME
+ 	input_event(cec_dev->cec_info.remote_cec_dev, EV_KEY, KEY_POWER, 1);
+ 	input_sync(cec_dev->cec_info.remote_cec_dev);
+ 	input_event(cec_dev->cec_info.remote_cec_dev, EV_KEY, KEY_POWER, 0);
+ 	input_sync(cec_dev->cec_info.remote_cec_dev);
++#endif
+ 	if (!suspend)
+ 		CEC_INFO("== WAKE UP BY CEC ==\n")
+ 	else
+diff --git a/drivers/amlogic/input/remote/remote_main.c b/drivers/amlogic/input/remote/remote_main.c
+index 88f909d..c6a1b3d 100644
+--- a/drivers/amlogic/input/remote/remote_main.c
++++ b/drivers/amlogic/input/remote/remote_main.c
+@@ -874,7 +874,6 @@ static int remote_resume(struct platform_device *pdev)
+ 			input_sync(gp_remote->input);
+ 			input_event(gp_remote->input, EV_KEY, KEY_POWER, 0);
+ 			input_sync(gp_remote->input);
+-
+ 			/*aml_write_reg32(P_AO_RTC_ADDR0,
+ 			(aml_read_reg32(P_AO_RTC_ADDR0) | (0x0000f000)));*/
+ 			aml_write_aobus(AO_RTI_STATUS_REG2, 0);
+@@ -882,10 +881,12 @@ static int remote_resume(struct platform_device *pdev)
+ 	} else {
+ 		if (get_resume_method() == REMOTE_WAKEUP) {
+ 			input_dbg("remote_wakeup\n");
++#ifndef CONFIG_GXBB_FORCE_POWER_ON_STATE_AFTER_RESUME
+ 			input_event(gp_remote->input, EV_KEY, KEY_POWER, 1);
+ 			input_sync(gp_remote->input);
+ 			input_event(gp_remote->input, EV_KEY, KEY_POWER, 0);
+ 			input_sync(gp_remote->input);
++#endif
+ 		}
+ 
+ 		if (get_resume_method() == REMOTE_CUS_WAKEUP) {
+diff --git a/drivers/amlogic/pm/Kconfig b/drivers/amlogic/pm/Kconfig
+index 0dbf192..2b4258b 100644
+--- a/drivers/amlogic/pm/Kconfig
++++ b/drivers/amlogic/pm/Kconfig
+@@ -19,3 +19,10 @@ config GXBB_SUSPEND
+     help
+       This is the Amlogic suspend  driver
+ 
++config GXBB_FORCE_POWER_ON_STATE_AFTER_RESUME
++    bool "Force to request the Power ON state after a resume"
++    depends on WAKELOCK && EARLYSUSPEND && GXBB_SUSPEND
++    default n
++    help
++      Force to request the Power ON state after a resume, causing to execute the late resume
++      and prevent transition back into the suspended state.
+diff --git a/drivers/amlogic/pm/gxbb_pm.c b/drivers/amlogic/pm/gxbb_pm.c
+index dfbb949..2130d4d 100644
+--- a/drivers/amlogic/pm/gxbb_pm.c
++++ b/drivers/amlogic/pm/gxbb_pm.c
+@@ -44,6 +44,10 @@ static int early_suspend_flag;
+ #undef pr_fmt
+ #define pr_fmt(fmt) "gxbb_pm: " fmt
+ 
++#ifdef CONFIG_GXBB_FORCE_POWER_ON_STATE_AFTER_RESUME
++extern void request_suspend_state(suspend_state_t new_state);
++#endif
++
+ static DEFINE_MUTEX(late_suspend_lock);
+ static LIST_HEAD(late_suspend_handlers);
+ static void __iomem *debug_reg;
+@@ -108,6 +112,9 @@ static void late_suspend(void)
+ static void early_resume(void)
+ {
+ 	struct late_suspend *pos;
++#ifdef CONFIG_GXBB_FORCE_POWER_ON_STATE_AFTER_RESUME
++	request_suspend_state(PM_SUSPEND_ON);
++#endif
+ 
+ 	if (debug_mask & DEBUG_SUSPEND)
+ 		pr_info("late_resume: call handlers\n");
